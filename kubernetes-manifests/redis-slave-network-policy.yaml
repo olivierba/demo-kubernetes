@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-slave-network-policy
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+      role: slave
+      tier: backend
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: guestbook
+    - podSelector:
+        matchLabels:
+          app: redis
+          role: master
+          tier: backend
+    ports:
+    - protocol: TCP
+      port: 6379

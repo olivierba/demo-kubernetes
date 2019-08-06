@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tiller
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tiller-sa
+  namespace: tiller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tiller:psp:privileged #role for the PSP allow tiller to run as root which is a current prerequisite
+  namespace: tiller
+rules:
+- apiGroups:
+  - policy
+  resourceNames:
+  - psp.privileged
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - use
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: tiller-manager #this allow tiller to access necessary info such as secrets in its own namespace
+  namespace: tiller
+rules:
+- apiGroups: ["", "batch", "extensions", "apps"]
+  resources: ["*"]
+  verbs: ["*"]
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: tiller-manager #allow tiller to deploy stuff in the defaut namespace. This is to be repeated for other namespace where we allow tiller to deploy stuff
+  namespace: default
+rules:
+- apiGroups: ["", "batch", "extensions", "apps"]
+  resources: ["*"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tiller:psp:privileged:binding
+  namespace: tiller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: tiller:psp:privileged
+subjects:
+  - kind: Group
+    name: system:serviceaccounts
+    namespace: tiller
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: tiller-binding
+  namespace: tiller
+subjects:
+- kind: ServiceAccount
+  name: tiller-sa
+  namespace: tiller
+roleRef:
+  kind: Role
+  name: tiller-manager
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: tiller-binding
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: tiller-sa
+  namespace: tiller
+roleRef:
+  kind: Role
+  name: tiller-manager
+  apiGroup: rbac.authorization.k8s.io
+---

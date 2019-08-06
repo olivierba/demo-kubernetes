@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      securityContext:
+        runAsUser: 101
+        fsGroup: 101
+      containers:
+      - name: nginx
+        image: eu.gcr.io/enhanced-mote-230116/nginx:withcurlgcc
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8081
+      restartPolicy: Always
+

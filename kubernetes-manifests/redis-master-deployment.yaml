@@ -1,0 +1,60 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: redis-master
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: redis
+        role: master
+        tier: backend
+    spec:
+      securityContext:
+        runAsUser: 999
+        fsGroup: 999
+      initContainers:
+      - name: init-redis-master
+        image: eu.gcr.io/olivierba-sandbox/redis:latest
+        command:
+        - bash
+        - "-c"
+        - |
+          set -ex
+          cp /mnt/config-map/master.conf /etc/redis.conf
+        volumeMounts:
+        - name: conf
+          mountPath: /etc
+          subPath: redis.conf
+        - name: config-map
+          mountPath: /mnt/config-map
+      containers:
+      - name: master
+        image: eu.gcr.io/olivierba-sandbox/redis:latest
+        securityContext:
+          runAsUser: 999
+          allowPrivilegeEscalation: false
+        args: ["/etc/redis.conf"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        ports:
+        - containerPort: 6379
+        volumeMounts:
+        - name: datadir
+          mountPath: /data
+        - name: conf
+          mountPath: /etc/
+          subPath: redis.conf
+      volumes:
+        - name: config-map
+          configMap:
+            name: redis
+        - name: datadir
+          persistentVolumeClaim:
+            claimName: redis-master-data
+        - name: conf
+          persistentVolumeClaim:
+            claimName: redis-master-conf
