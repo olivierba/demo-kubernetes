@@ -30,6 +30,7 @@ gcloud beta container clusters create ks-test \
       --identity-namespace=olivierba-sandbox.svc.id.goog \
       --enable-ip-alias \
       --create-subnetwork name=ks-test-subnet \
+      --metadata disable-legacy-endpoints=false \
       --enable-network-policy #\
       #--enable-pod-security-policy #there seems to be a issue with podsecurity policy in conjunction with workload identity disabling for now
 
@@ -49,5 +50,9 @@ gcloud iam service-accounts add-iam-policy-binding \
   --role roles/iam.workloadIdentityUser \
   --member "serviceAccount:olivierba-sandbox.svc.id.goog[default/gkewid-service]" \
   gke-workload-identity@olivierba-sandbox.iam.gserviceaccount.com
+
+gcloud projects add-iam-policy-binding olivierba-sandbox \
+  --member serviceAccount:gke-workload-identity@olivierba-sandbox.iam.gserviceaccount.com \
+  --role roles/editor
 
 kubectl annotate serviceaccount --namespace default gkewid-service iam.gke.io/gcp-service-account=gke-workload-identity@olivierba-sandbox.iam.gserviceaccount.com
