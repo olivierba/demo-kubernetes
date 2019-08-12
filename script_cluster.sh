@@ -27,32 +27,32 @@ gcloud beta container clusters create ks-test \
       --enable-cloud-monitoring --enable-cloud-logging --project olivierba-sandbox --enable-stackdriver-kubernetes \
       --image-type=COS_CONTAINERD --enable-autoupgrade \
       --database-encryption-key=projects/olivierba-sandbox/locations/europe-west1/keyRings/gkesecret_ring/cryptoKeys/gkesecret_key \
-      --identity-namespace=olivierba-sandbox.svc.id.goog \
       --enable-ip-alias \
       --create-subnetwork name=ks-test-subnet \
       --metadata disable-legacy-endpoints=false \
-      --enable-network-policy #\
-      #--enable-pod-security-policy #there seems to be a issue with podsecurity policy in conjunction with workload identity disabling for now
+      --enable-network-policy \
+      --enable-pod-security-policy #there seems to be a issue with podsecurity policy in conjunction with workload identity disabling for now
+      #--identity-namespace=olivierba-sandbox.svc.id.goog \ #disabling major issues
 
 
-#kubectl apply -f cluster-setup/psp-unrestricted.yaml
-#kubectl apply -f cluster-setup/psp-restricted.yaml
+kubectl apply -f cluster-setup/psp-unrestricted.yaml
+kubectl apply -f cluster-setup/psp-restricted.yaml
 
 
 # service account for workload indentity
-gcloud iam service-accounts create gke-workload-identity --display-name "GKE Workload Identity GSA"
+#gcloud iam service-accounts create gke-workload-identity --display-name "GKE Workload Identity GSA"
 
 #kubectl create namespace service-accounts
 
-kubectl create serviceaccount --namespace default gkewid-service
+#kubectl create serviceaccount --namespace default gkewid-service
 
-gcloud iam service-accounts add-iam-policy-binding \
-  --role roles/iam.workloadIdentityUser \
-  --member "serviceAccount:olivierba-sandbox.svc.id.goog[default/gkewid-service]" \
-  gke-workload-identity@olivierba-sandbox.iam.gserviceaccount.com
+#gcloud iam service-accounts add-iam-policy-binding \
+#  --role roles/iam.workloadIdentityUser \
+#  --member "serviceAccount:olivierba-sandbox.svc.id.goog[default/gkewid-service]" \
+#  gke-workload-identity@olivierba-sandbox.iam.gserviceaccount.com
 
-gcloud projects add-iam-policy-binding olivierba-sandbox \
-  --member serviceAccount:gke-workload-identity@olivierba-sandbox.iam.gserviceaccount.com \
-  --role roles/editor
+#gcloud projects add-iam-policy-binding olivierba-sandbox \
+#  --member serviceAccount:gke-workload-identity@olivierba-sandbox.iam.gserviceaccount.com \
+#  --role roles/editor
 
-kubectl annotate serviceaccount --namespace default gkewid-service iam.gke.io/gcp-service-account=gke-workload-identity@olivierba-sandbox.iam.gserviceaccount.com
+#kubectl annotate serviceaccount --namespace default gkewid-service iam.gke.io/gcp-service-account=gke-workload-identity@olivierba-sandbox.iam.gserviceaccount.com
