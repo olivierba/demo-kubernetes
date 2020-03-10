@@ -120,27 +120,28 @@ gcloud kms keys add-iam-policy-binding "vulnz-signer" \
 #network policy, Pod security policy, COS CONTAINERD, KMS encrypted ETCD, workload identity, private cluster, shielded node, activate stackdrivers logs, create own subnet for nodes
 gcloud beta container clusters create ks-test \
       --region=europe-west1 \
-      --release-channel stable \
+      --release-channel regular \
       --enable-autorepair \
       --enable-stackdriver-kubernetes \
       --project $PROJECTID \
       --image-type=COS_CONTAINERD --enable-autoupgrade \
       --enable-shielded-nodes \
-      --shielded-integrity-monitoring \
-      --shielded-secure-boot \
-      --workload-metadata-from-node=GKE_METADATA \
       --database-encryption-key=projects/$PROJECTID/locations/europe-west1/keyRings/gkesecret_ring/cryptoKeys/gkesecret_key \
+      --create-subnetwork name=gke-subnet \
+      --enable-ip-alias \
+      --enable-private-nodes \
+      --enable-private-endpoint \
+      --master-ipv4-cidr 172.16.0.0/28 \
       --enable-master-authorized-networks \
-      --master-authorized-networks $MYIP/32 \
       --enable-network-policy \
       --enable-pod-security-policy \
       --identity-namespace=$PROJECTID.svc.id.goog \
       --enable-binauthz
 
 # Should you need to update authorized IP (DEMO PURPOSE), in prod enable VPC native add use an internal bastion host for authorized IP
-#gcloud container clusters update [CLUSTER_NAME] \
-#    --enable-master-authorized-networks \
-#    --master-authorized-networks $MYIP/32
+gcloud container clusters update ks-test \
+    --enable-master-authorized-networks \
+    --master-authorized-networks $MYIP/32
 
 kubectl apply -f cluster-setup/psp-unrestricted.yaml
 kubectl apply -f cluster-setup/psp-restricted.yaml
