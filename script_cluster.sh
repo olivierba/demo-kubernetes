@@ -24,6 +24,7 @@ gcloud kms keys add-iam-policy-binding gkesecret_key \
   --project $PROJECTID
 
 
+
 # service account for workload identity
 gcloud iam service-accounts create gke-workload-identity --display-name "GKE Workload Identity GSA"
 
@@ -109,12 +110,19 @@ gcloud container binauthz attestors add-iam-policy-binding "vulnz-attestor" \
   --member "serviceAccount:${CLOUD_BUILD_SA_EMAIL}" \
   --role "roles/binaryauthorization.attestorsVerifier"
 
-gcloud kms keys add-iam-policy-binding "vulnz-signer" \
+gcloud kms keys add-iam-policy-binding "vulnz-signerz" \
   --project "${PROJECTID}" \
   --location "europe-west1" \
   --keyring "binauthz" \
   --member "serviceAccount:${CLOUD_BUILD_SA_EMAIL}" \
   --role 'roles/cloudkms.signerVerifier'
+
+  #gcloud kms keys add-iam-policy-binding binauth \
+  #--project "${PROJECTID}" \
+  #--location "europe-west1" \
+  #--keyring "binauthz" \
+  #--member "serviceAccount:${CLOUD_BUILD_SA_EMAIL}" \
+  #--role roles/cloudkms.cryptoKeyDecrypter
 
 #create secure gke cluster
 #network policy, Pod security policy, COS CONTAINERD, KMS encrypted ETCD, workload identity, private cluster, shielded node, activate stackdrivers logs, create own subnet for nodes
@@ -130,37 +138,53 @@ gcloud beta container clusters create ks-test \
       --create-subnetwork name=gke-subnet \
       --enable-ip-alias \
       --enable-private-nodes \
-      --enable-private-endpoint \
       --master-ipv4-cidr 172.16.0.0/28 \
       --enable-master-authorized-networks \
       --enable-network-policy \
       --enable-pod-security-policy \
       --identity-namespace=$PROJECTID.svc.id.goog \
       --enable-binauthz
+      #--enable-private-endpoint \ #hardcore mode, the control plane API can only be accessed via internal private IP. More secure, but not very convenient
 
-# Should you need to update authorized IP (DEMO PURPOSE), in prod enable VPC native add use an internal bastion host for authorized IP
+# note I use a cloud NAT router to allow egress access from my nodes, this can be disable for even more secure mode at the expense of access to public registries such at dockerhub
+
+#binauth policy
+gcloud container binauthz policy import ./binauthz-policy.yaml \
+  --project "${PROJECTID}"
+
+# allow our IP
 gcloud container clusters update ks-test \
+    --region=europe-west1 \
+    --project $PROJECTID \
     --enable-master-authorized-networks \
     --master-authorized-networks $MYIP/32
+
 
 kubectl apply -f cluster-setup/psp-unrestricted.yaml
 kubectl apply -f cluster-setup/psp-restricted.yaml
 
 #k8s SA for workload identity
-kubectl create namespace gkewid-namespace
-kubectl create serviceaccount --namespace gkewid-namespace gkewid-service
+kubectl create serviceaccount gkewid-sa
 
-gcloud iam service-accounts add-iam-policy-binding \
-  --role roles/iam.workloadIdentityUser \
-  --member "serviceAccount:$PROJECTID.svc.id.goog[gkewid-namespace/gkewid-service]" \
-  gke-workload-identity@$PROJECTID.gserviceaccount.com
+gcloud iam service-accounts create gkewid-service \
+  --project $PROJECTID
 
 gcloud projects add-iam-policy-binding $PROJECTID \
-  --member serviceAccount:gke-workload-identity@$PROJECTID.iam.gserviceaccount.com \
-  --role roles/editor
+  --role roles/iam.serviceAccountTokenCreator \
+  --member "serviceAccount:gkewid-service@${PROJECTID}.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding $PROJECTID \
+  --role roles/viewer \
+  --member "serviceAccount:gkewid-service@${PROJECTID}.iam.gserviceaccount.com"
 
-kubectl annotate serviceaccount --namespace gkewid-namespace gkewid-service iam.gke.io/gcp-service-account=gke-workload-identity@$PROJECTID.iam.gserviceaccount.com
+gcloud iam service-accounts add-iam-policy-binding \
+  --project $PROJECTID \
+  --role roles/iam.workloadIdentityUser \
+  --member "serviceAccount:${PROJECTID}.svc.id.goog[default/gkewid-sa]" \
+  gkewid-service@${PROJECTID}.iam.gserviceaccount.com
 
-#loading binauth policy
-gcloud container binauthz policy import ./binauthz-policy.yaml \
-  --project "${PROJECTID}"
+kubectl annotate serviceaccount  gkewid-sa iam.gke.io/gcp-service-account=gkewid-service@$PROJECTID.iam.gserviceaccount.com
+
+#gcloud container clusters update ks-test \
+#    --region=europe-west1 \
+#    --project $PROJECTID \
+#    --no-enable-master-authorized-networks

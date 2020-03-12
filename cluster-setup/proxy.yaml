@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proxy-k8s-api-deployment
+  labels:
+    app: k8s-api-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-api-proxy
+  template:
+    metadata:
+      labels:
+        app: k8s-api-proxy
+    spec:
+      securityContext:
+        runAsUser: 101
+        fsGroup: 101
+      containers:
+      - name: k8s-api-proxy
+        image: gcr.io/orbital-signal-243013/k8s-api-proxy:0.3 
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8118
+      restartPolicy: Always

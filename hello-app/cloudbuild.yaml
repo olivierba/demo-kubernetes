@@ -1,0 +1,87 @@
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+steps:
+
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'Build application and container'
+  args:
+  - 'build'
+  - '-t'
+  - 'gcr.io/$PROJECT_ID/hello-app:$SHORT_SHA'
+  - '.'
+
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'Push image to Container Registry'
+  args:
+  - 'push'
+  - 'gcr.io/$PROJECT_ID/hello-app:$SHORT_SHA'
+
+- name: gcr.io/$PROJECT_ID/cloudbuild-attestor
+  id: 'Check Vulnerability Scan results'
+  entrypoint: 'sh'
+  args:
+  - -xe
+  - -c
+  - |
+     /scripts/check_vulnerabilities.sh -p $PROJECT_ID -i gcr.io/$PROJECT_ID/hello-app:$SHORT_SHA -t 5
+
+- name: 'gcr.io/$PROJECT_ID/cloudbuild-attestor'
+  id: 'Attest Vulnerability Scan'
+  entrypoint: 'sh'
+  args:
+  - -xe
+  - -c
+  - |-
+      FQ_DIGEST=$(gcloud container images describe --format 'value(image_summary.fully_qualified_digest)' gcr.io/$PROJECT_ID/hello-app:$SHORT_SHA)
+      /scripts/create_attestation.sh \
+        -p "$PROJECT_ID" \
+        -i "$${FQ_DIGEST}" \
+        -a "$_VULNZ_ATTESTOR" \
+        -v "$_VULNZ_KMS_KEY_VERSION" \
+        -k "$_VULNZ_KMS_KEY" \
+        -l "$_KMS_LOCATION" \
+        -r "$_KMS_KEYRING"
+
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: 'Generate Kubernetes manifest'
+  entrypoint: /bin/sh
+  args:
+  - '-c'
+  - |-
+      DIGEST=$(gcloud container images describe --format 'value(image_summary.digest)' gcr.io/$PROJECT_ID/hello-app:$SHORT_SHA)
+      sed "s/GOOGLE_CLOUD_PROJECT/${PROJECT_ID}/g" kubernetes/deployment.yaml.tpl | \
+      sed "s/DIGEST/$${DIGEST}/g" > kubernetes/deployment.yaml
+
+- name: 'gcr.io/cloud-builders/kubectl'
+  id: 'Deploy to staging'
+  args: ['apply', '-f', 'kubernetes/']
+  env:
+  - 'CLOUDSDK_COMPUTE_REGION=$_COMPUTE_REGION'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=$_STAGING_CLUSTER'
+
+# Clear the context - this is required until new gcloud and kubectl builders are
+# published which fix the caching bug.
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: 'Clear staging context'
+  entrypoint: '/bin/bash'
+  args: ['-c', 'rm -rf ~/.config/gcloud ~/.kube']
+
+
+# Clear the context - this is required until new gcloud and kubectl builders are
+# published which fix the caching bug.
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: 'Clear production context'
+  entrypoint: '/bin/bash'
+  args: ['-c', 'rm -rf ~/.config/gcloud ~/.kube']

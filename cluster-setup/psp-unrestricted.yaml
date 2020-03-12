@@ -10,7 +10,7 @@ spec:
   hostNetwork: true
   hostIPC: true
   hostPID: true
-  # required capabilities for TWISTLOCK defender daemonset
+  
   allowedCapabilities:
   - NET_ADMIN 
   - SYS_ADMIN
